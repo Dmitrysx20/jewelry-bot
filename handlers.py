@@ -74,84 +74,11 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await write_admin_request(query)
     elif callback_data == "admin_back":
         await handle_admin_back(query)
-
-async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик текстовых сообщений"""
-    user = update.effective_user
-    message_text = update.message.text
-    
-    # Обновляем активность пользователя
-    db.update_user_activity(user.id)
-    
-    # Если пользователь админ, проверяем специальные команды
-    if is_admin(user.id):
-        if message_text.startswith('/reply'):
-            # Обработка ответа пользователю
-            parts = message_text.split(' ', 2)
-            if len(parts) >= 3:
-                try:
-                    target_user_id = int(parts[1])
-                    reply_text = parts[2]
-                    await send_message_to_user(context.bot, target_user_id, reply_text)
-                    await update.message.reply_text(f"✅ Ответ отправлен пользователю {target_user_id}")
-                except ValueError:
-                    await update.message.reply_text("❌ Неверный формат. Используйте: /reply USER_ID текст")
-            return
-    
-    # Сохраняем сообщение в базу данных
-    db.add_message(user.id, message_text)
-    
-    # Отправляем уведомление админу
-    await notify_admin_new_message(context.bot, user, message_text)
-    
-    # Отвечаем пользователю
-    await update.message.reply_text(
-        "📨 Ваше сообщение получено! Администратор свяжется с вами в ближайшее время.",
-        reply_markup=get_main_menu_keyboard()
-    )
-
-async def send_message_to_user(bot, user_id: int, message_text: str):
-    """Отправить сообщение пользователю"""
-    try:
-        await bot.send_message(
-            chat_id=user_id,
-            text=f"💬 Сообщение от администратора:\n\n{message_text}"
-        )
-    except Exception as e:
-        print(f"Ошибка отправки сообщения пользователю {user_id}: {e}")
-
-async def write_admin_request(query):
-    """Запрос на написание админу"""
-    await query.edit_message_text(
-        "💬 Написать админу\n\nВведите ваше сообщение:",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔙 Главное меню", callback_data="main_menu")
-        ]])
-    )
-
-async def notify_admin_new_message(bot, user, message_text: str):
-    """Уведомить админа о новом сообщении"""
-    if not ADMIN_ID:
-        return
-    
-    try:
-        name = f"{user.first_name or ''} {user.last_name or ''}".strip()
-        if not name:
-            name = user.username or f"Пользователь {user.id}"
-        
-        notification = f"📨 Новое сообщение!\n\n"
-        notification += f"От: {name}\n"
-        notification += f"ID: {user.id}\n"
-        notification += f"Текст: {message_text[:100]}..."
-        if len(message_text) > 100:
-            notification += " (обрезано)"
-        
-        await bot.send_message(
-            chat_id=ADMIN_ID,
-            text=notification
-        )
-    except Exception as e:
-        print(f"Ошибка уведомления админа: {e}")
+    # ИСПРАВЛЕНИЕ: Добавляем обработчики для кнопок "Назад"
+    elif callback_data == "back_to_category":
+        await show_catalog(query)
+    elif callback_data == "catalog":
+        await show_catalog(query)
 
 async def show_main_menu(query):
     """Показать главное меню"""
@@ -298,21 +225,6 @@ Email: {SHOP_EMAIL}
         reply_markup=get_info_keyboard()
     )
 
-async def add_to_cart(query, product_id):
-    """Добавить товар в корзину"""
-    user_id = query.from_user.id
-    db.add_to_cart(user_id, product_id)
-    await query.answer("✅ Товар добавлен в корзину!")
-
-async def start_checkout(query):
-    """Начать оформление заказа"""
-    await query.edit_message_text(
-        "💳 Оформление заказа\n\nФункция в разработке...",
-        reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔙 Главное меню", callback_data="main_menu")
-        ]])
-    )
-
 async def show_product(query, product_id):
     """Показать товар"""
     product = get_product_by_id(product_id)
@@ -337,6 +249,30 @@ async def show_product(query, product_id):
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
+async def write_admin_request(query):
+    """Запрос на написание админу"""
+    await query.edit_message_text(
+        "💬 Написать админу\n\nВведите ваше сообщение:",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Главное меню", callback_data="main_menu")
+        ]])
+    )
+
+async def add_to_cart(query, product_id):
+    """Добавить товар в корзину"""
+    user_id = query.from_user.id
+    db.add_to_cart(user_id, product_id)
+    await query.answer("✅ Товар добавлен в корзину!")
+
+async def start_checkout(query):
+    """Начать оформление заказа"""
+    await query.edit_message_text(
+        "💳 Оформление заказа\n\nФункция в разработке...",
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Главное меню", callback_data="main_menu")
+        ]])
+    )
+
 async def clear_cart(query):
     """Очистить корзину"""
     user_id = query.from_user.id
@@ -344,4 +280,77 @@ async def clear_cart(query):
     await query.edit_message_text(
         "🗑️ Корзина очищена",
         reply_markup=get_cart_keyboard()
-    ) 
+    )
+
+async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик текстовых сообщений"""
+    user = update.effective_user
+    message_text = update.message.text
+    
+    # Обновляем активность пользователя
+    db.update_user_activity(user.id)
+    
+    # Если пользователь админ, проверяем специальные команды
+    if is_admin(user.id):
+        if message_text.startswith('/reply'):
+            # Обработка ответа пользователю
+            parts = message_text.split(' ', 2)
+            if len(parts) >= 3:
+                try:
+                    target_user_id = int(parts[1])
+                    reply_text = parts[2]
+                    await send_message_to_user(context.bot, target_user_id, reply_text)
+                    await update.message.reply_text(f"✅ Ответ отправлен пользователю {target_user_id}")
+                except ValueError:
+                    await update.message.reply_text("❌ Неверный формат. Используйте: /reply USER_ID текст")
+            return
+    
+    # Сохраняем сообщение в базу данных
+    db.add_message(user.id, message_text)
+    
+    # Отправляем уведомление админу
+    await notify_admin_new_message(context.bot, user, message_text)
+    
+    # Отвечаем пользователю
+    await update.message.reply_text(
+        "📨 Ваше сообщение получено! Администратор свяжется с вами в ближайшее время.",
+        reply_markup=get_main_menu_keyboard()
+    )
+
+async def send_message_to_user(bot, user_id: int, message_text: str):
+    """Отправить сообщение пользователю"""
+    try:
+        await bot.send_message(
+            chat_id=user_id,
+            text=f"💬 Сообщение от администратора:\n\n{message_text}"
+        )
+    except Exception as e:
+        print(f"Ошибка отправки сообщения пользователю {user_id}: {e}")
+
+async def notify_admin_new_message(bot, user, message_text: str):
+    """Уведомить админа о новом сообщении"""
+    if not ADMIN_ID:
+        return
+    
+    try:
+        name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        if not name:
+            name = user.username or f"Пользователь {user.id}"
+        
+        notification = f"📨 Новое сообщение!\n\n"
+        notification += f"От: {name}\n"
+        notification += f"ID: {user.id}\n"
+        notification += f"Текст: {message_text[:100]}..."
+        if len(message_text) > 100:
+            notification += " (обрезано)"
+        
+        await bot.send_message(
+            chat_id=ADMIN_ID,
+            text=notification
+        )
+    except Exception as e:
+        print(f"Ошибка уведомления админа: {e}")
+
+def format_price(price):
+    """Форматировать цену"""
+    return f"{price:,} ₽".replace(",", " ") 
