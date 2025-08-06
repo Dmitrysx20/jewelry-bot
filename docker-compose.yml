@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  jewelry-bot:
+    build: .
+    container_name: jewelry-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=7569172964:AAHrUYPE04vKqUhN-Si5UJC1fZNVGSShJOk
+      - ADMIN_ID=${ADMIN_ID}
+    volumes:
+      - ./jewelry_bot.db:/app/jewelry_bot.db
+    ports:
+      - "8000:8000"  # если понадобится веб-интерфейс 
